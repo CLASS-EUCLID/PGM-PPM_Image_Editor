@@ -1,45 +1,95 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 //#include <handlers.h>
 
-void handle_crop(char *current_file,char *argument)
+/*
+to do
+
+1 ignorare comentarii cand citesti poze |text?|
+2 loop in care poti sa bagi infinitate comenzi pana EXIT
+3 abilitatea de a citi alte imagini consectuive de marimi diferite
+ */
+
+typedef struct {
+    int **pixels;   // 2D array for pixel values
+    int width;      // Image width
+    int length;     // Image length
+    int max_value;  // Maximum pixel value
+    int pixel_depth; // Number of channels (1 for grayscale, 3 for RGB)
+	int upper, lower; // Values that represent the selected portion of the image
+} Image;
+
+void handle_crop(Image *photo,char *argument)
 {
 	return;
 }
-void handle_save(char *current_file,char *argument)
+void handle_save(Image *photo,char *argument)
 {
 	return;
 }
-void handle_exit(char *current_file,char *argument)
+void handle_exit(Image *photo,char *argument)
 {
 	return;
 }
-void handle_select(char *current_file,char *argument)
+void handle_select(Image *photo,char *argument)
 {
 	return;
 }
-void handle_histogram(char *current_file,char *argument)
+void handle_histogram(Image *photo,char *argument)
 {
 	return;
 }
-void handle_equalize(char *current_file,char *argument)
+void handle_equalize(Image *photo,char *argument)
 {
 	return;
 }
-void handle_rotate(char *current_file,char *argument)
+void handle_rotate(Image *photo,char *argument)
 {
 	return;
 }
 
-void text_file_image(int in_color, char * file_name)
+
+
+
+void text_file_image(Image *photo, char * file_name)
 {
 	// this function will take the current loaded file and repplace it with the new one
-	int length,width;char format[3];
 	FILE *file = fopen(file_name,"r");
-	fseek(file,0,SEEK_SET);
-	fscanf(file," %s",format);
-	fscanf(file," %d %d",&length,&width);
-	printf("%s\n%d\n%d",format,length,width);
+	fseek(file,2,SEEK_SET);
+	fscanf(file," %d %d %d",&photo->length,&photo->width,&photo->max_value);
+
+	// Allocate memory for the row pointers
+    photo->pixels = (int **)calloc(photo->length * photo->pixel_depth, sizeof(int *));
+    if (photo->pixels == NULL) {
+        perror("Failed to allocate row pointers");
+		fclose(file);
+        return;
+    }
+
+    // Allocate memory for each row
+    for (int i = 0; i < photo->length * photo->pixel_depth; i++) {
+        (photo->pixels)[i] = (int *)calloc(photo->width, sizeof(int));
+        if ((photo->pixels)[i] == NULL) {
+            perror("Failed to allocate row");
+            // Free any previously allocated rows
+            for (int j = 0; j < i; j++) {
+                free((photo->pixels)[j]);
+            }
+            free(photo->pixels);
+            *photo->pixels = NULL;
+			fclose(file);
+            return;
+        }
+    }
+	for (int i = 0; i < photo->width; i++) {
+        for (int j = 0; j < photo->length * photo->pixel_depth; j++) {
+            fscanf(file, "%d", &photo->pixels[i][j]);
+            printf("%d ", photo->pixels[i][j]);
+        }
+        printf("\n");
+    }
+
 }
 
 void binary_file_image()
@@ -47,7 +97,7 @@ void binary_file_image()
 	// same but for binary files
 }
 
-void handle_load(char *current_file, char *file_name)
+void handle_load(Image *photo, char *file_name)
 {
 	char format[3] = {0};
 	if(file_name == NULL) {
@@ -58,18 +108,19 @@ void handle_load(char *current_file, char *file_name)
 	FILE *file = fopen(file_name,"rb");
 	if (!file) {
         printf("Failed to load %s\n", file_name);
-        current_file[0] = '\0';  // Clear current file if loading fails
         return; // Failed to load
     }
 	fread(format,sizeof(char),2,file);
 	fclose(file);
 	if(!strcmp(format,"P2"))
 	{
-		text_file_image(0,file_name);
+		photo->pixel_depth = 1;
+		text_file_image(photo,file_name);
 	}
-	if(format == "P3")
+	if(!strcmp(format,"P3"))
 	{
-		text_file_image(1,file_name);
+		photo->pixel_depth = 3;
+		text_file_image(photo,file_name);
 	}
 	else if(format == "P5" || format == "P6")
 	{
@@ -80,7 +131,7 @@ void handle_load(char *current_file, char *file_name)
 }
 
 
-void get_input(char *image)
+void get_input(Image *photo)
 {
 	char input[101] = {'\0'};
 	char *mode;
@@ -102,7 +153,7 @@ void get_input(char *image)
 	{
 		if(!strcmp(mode,commands[i]))
 		{
-			handlers[i](image,argument);
+			handlers[i](photo,argument);
 			return;
 		}
 	}
@@ -110,7 +161,7 @@ void get_input(char *image)
 
 int main()
 {
-	char *image;
-	get_input(image);
+	Image photo;
+	get_input(&photo);
 	return 0;
 }
