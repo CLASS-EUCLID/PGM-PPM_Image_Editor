@@ -9,7 +9,7 @@ to do
 1 ignorare comentarii cand citesti poze |text?|
 2 loop in care poti sa bagi infinitate comenzi pana EXIT
 3 abilitatea de a citi alte imagini consectuive de marimi diferite
- */
+*/
 
 typedef struct {
     int **pixels;   // 2D array for pixel values
@@ -19,6 +19,33 @@ typedef struct {
     int pixel_depth; // Number of channels (1 for grayscale, 3 for RGB)
 	int upper, lower; // Values that represent the selected portion of the image
 } Image;
+
+
+void free_image(Image *photo)
+{
+    // Check if there are any pixels allocated
+    if (photo->pixels != NULL) {
+        // Free each row
+        for (int i = 0; i < photo->width; i++) {
+            if (photo->pixels[i] != NULL) {
+                free(photo->pixels[i]);
+                photo->pixels[i] = NULL;
+            }
+        }
+        // Free the array of row pointers
+        free(photo->pixels);
+        photo->pixels = NULL;
+    }
+
+    // Reset other struct members to default values
+    photo->width = 0;
+    photo->length = 0;
+    photo->max_value = 0;
+    photo->pixel_depth = 0;
+    photo->upper = 0;
+    photo->lower = 0;
+}
+
 
 void handle_crop(Image *photo,char *argument)
 {
@@ -55,12 +82,13 @@ void handle_rotate(Image *photo,char *argument)
 void text_file_image(Image *photo, char * file_name)
 {
 	// this function will take the current loaded file and repplace it with the new one
+	free_image(photo);
 	FILE *file = fopen(file_name,"r");
 	fseek(file,2,SEEK_SET);
 	fscanf(file," %d %d %d",&photo->length,&photo->width,&photo->max_value);
 
 	// Allocate memory for the row pointers
-    photo->pixels = (int **)calloc(photo->length * photo->pixel_depth, sizeof(int *));
+    photo->pixels = (int **)calloc(photo->width, sizeof(int *));
     if (photo->pixels == NULL) {
         perror("Failed to allocate row pointers");
 		fclose(file);
@@ -68,8 +96,8 @@ void text_file_image(Image *photo, char * file_name)
     }
 
     // Allocate memory for each row
-    for (int i = 0; i < photo->length * photo->pixel_depth; i++) {
-        (photo->pixels)[i] = (int *)calloc(photo->width, sizeof(int));
+    for (int i = 0; i < photo->width; i++) {
+        (photo->pixels)[i] = (int *)calloc(photo->length * photo->pixel_depth, sizeof(int));
         if ((photo->pixels)[i] == NULL) {
             perror("Failed to allocate row");
             // Free any previously allocated rows
@@ -85,7 +113,7 @@ void text_file_image(Image *photo, char * file_name)
 	for (int i = 0; i < photo->width; i++) {
         for (int j = 0; j < photo->length * photo->pixel_depth; j++) {
             fscanf(file, "%d", &photo->pixels[i][j]);
-            printf("%d ", photo->pixels[i][j]);
+            printf("%d ", photo->pixels[i][j]); // to remove later
         }
         printf("\n");
     }
@@ -154,14 +182,20 @@ void get_input(Image *photo)
 		if(!strcmp(mode,commands[i]))
 		{
 			handlers[i](photo,argument);
-			return;
+			break;
 		}
 	}
+	if(!strcmp(mode,"EXIT\n"))
+	{
+		return;
+	}
+	get_input(photo);
 }
 
 int main()
 {
 	Image photo;
 	get_input(&photo);
+	free_image(&photo);
 	return 0;
 }
