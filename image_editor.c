@@ -77,30 +77,6 @@ void free_image(Image *photo) {
     photo->y2 = 0;
 }
 
-void freeImage(Image *photo) {
-    if (photo) {
-        for (int i = 0; i < photo->width; i++) {
-            free(photo->pixels[i]);
-        }
-        free(photo->pixels);
-        //free(photo);
-    }
-}
-
-void handle_crop(Image *photo,char *argument)
-{
-	return;
-}
-void handle_save(Image *photo,char *argument)
-{
-	return;
-}
-void handle_exit(Image *photo,char *argument)
-
-{
-	exit(0);
-}
-
 void handle_select(Image *photo,char *argument)
 {
 	int x1,x2,y1,y2;
@@ -111,6 +87,10 @@ void handle_select(Image *photo,char *argument)
 			printf("No image loaded\n");
 			return;
 		}
+		photo->x1 = 0;
+		photo->x2 = photo->length;
+		photo->y1 = 0;
+		photo->y2 = photo->width;
 		printf(("Selected ALL\n"));
 		return;
 	}
@@ -120,8 +100,8 @@ void handle_select(Image *photo,char *argument)
     }
 	sort_int(&x1,&x2);
 	sort_int(&y1,&y2);
-	// checks if out of bounds
-	if(x1 > photo->length || x2 > photo->length || y1 > photo->width || y2 > photo->width)
+	// checks if out of bounds (adica nush daca trebuie pus -1 la fiecare coordonata sau nu depinde daca poti sa iei marginea sau nu)
+	if(x1-1 > photo->length || x2-1 > photo->length || y1-1 > photo->width || y2-1 > photo->width)
 	{
 		printf("Invalid set of coordinates\n");
 		return;
@@ -131,6 +111,56 @@ void handle_select(Image *photo,char *argument)
 	photo->x2 = x2;
 	photo->y2 = y2;
 	printf("Selected %d %d %d %d\n",photo->x1,photo->y1,photo->x2,photo->y2);
+}
+
+void freeImage(Image *photo) {
+    if (photo) {
+        for (int i = 0; i < photo->width; i++) {
+            free(photo->pixels[i]);
+        }
+        free(photo->pixels);
+        //free(photo);
+    }
+}
+
+// trebuie verificat ce considera ei ca fiind out of bounds pls ( defapt asta ar fi la select dar whatever)
+void handle_crop(Image *photo,char *argument)
+{
+	if(!photo->length)
+	{
+		printf("No image loaded\n");
+		return;
+	}
+	int a = 0,b = 0;
+	for(int i = photo->y1;i < photo->y2; i++)
+	{
+		for(int j = photo->x1; j < photo->x2 * photo->pixel_depth; j++)
+		{
+			photo->pixels[a][b++] = photo->pixels[i][j];
+		}
+		a++;
+		b = 0;
+	}
+	photo->length = photo->x2 - photo->x1;
+	photo->width = photo->y2 - photo->y1;
+	handle_select(photo,"ALL\n");
+	for (int i = 0; i < photo->width; i++) {
+        for (int j = 0; j < photo->length * photo->pixel_depth; j++) {
+            printf("%d ", photo->pixels[i][j]); // to remove later
+        }
+        printf("\n");
+    }
+	printf("Image cropped\n");
+}
+
+void handle_save(Image *photo,char *argument)
+{
+	return;
+}
+void handle_exit(Image *photo,char *argument)
+
+{
+	exit(0);
 }
 
 void handle_histogram(Image *photo,char *argument)
@@ -286,7 +316,7 @@ void get_input(Image *photo)
 	char input[101] = {'\0'};
 	char *mode;
 	char *argument;
-	const char *commands[] = {"LOAD", "CROP", "SAVE", "EXIT\n", "SELECT",
+	const char *commands[] = {"LOAD", "CROP\n", "SAVE", "EXIT\n", "SELECT",
 							  "HISTOGRAM", "EQUALIZE", "ROTATE"};
 	void (*handlers[])() = {handle_load, handle_crop, handle_save, handle_exit,
                             handle_select, handle_histogram, handle_equalize, handle_rotate};
