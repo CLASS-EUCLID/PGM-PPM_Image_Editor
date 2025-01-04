@@ -11,7 +11,7 @@ to do
 3 abilitatea de a citi alte imagini consectuive de marimi diferite
 */
 
-typedef struct {
+typedef struct __attribute__((packed)){
     int **pixels;   // 2D array for pixel values
     int width;      // Image width
     int length;     // Image length
@@ -20,24 +20,24 @@ typedef struct {
 	int upper, lower; // Values that represent the selected portion of the image
 } Image;
 
+// ceva gresit ori aici ori in modul in care e pusa poza in matrice 
+void free_image(Image *photo) { 
+    if (photo == NULL) return; // If the image structure itself is NULL, do nothing.
 
-void free_image(Image *photo)
-{
-    // Check if there are any pixels allocated
-    if (photo->pixels != NULL) {
-        // Free each row
-        for (int i = 0; i < photo->width; i++) {
-            if (photo->pixels[i] != NULL) {
-                free(photo->pixels[i]);
-                photo->pixels[i] = NULL;
-            }
+    // Free each row of the pixels
+    for (int i = 0; i < photo->width; i++) {
+        if (photo->pixels[i] != NULL) {
+            free(photo->pixels[i]);  // Free the row
         }
-        // Free the array of row pointers
-        free(photo->pixels);
-        photo->pixels = NULL;
     }
 
-    // Reset other struct members to default values
+    // Free the row pointers
+    if (photo->pixels != NULL) {
+        free(photo->pixels);  // Free the array of row pointers
+    }
+
+    // Reset the fields of the structure
+    photo->pixels = NULL;
     photo->width = 0;
     photo->length = 0;
     photo->max_value = 0;
@@ -57,7 +57,7 @@ void handle_save(Image *photo,char *argument)
 }
 void handle_exit(Image *photo,char *argument)
 {
-	return;
+	exit(0);
 }
 void handle_select(Image *photo,char *argument)
 {
@@ -82,7 +82,7 @@ void handle_rotate(Image *photo,char *argument)
 void text_file_image(Image *photo, char * file_name)
 {
 	// this function will take the current loaded file and repplace it with the new one
-	free_image(photo);
+	//free_image(photo); // trebie rezolvat pt mem leak dar momentan whatever
 	FILE *file = fopen(file_name,"r");
 	fseek(file,2,SEEK_SET);
 	fscanf(file," %d %d %d",&photo->length,&photo->width,&photo->max_value);
@@ -117,12 +117,21 @@ void text_file_image(Image *photo, char * file_name)
         }
         printf("\n");
     }
-
+	fclose(file);
 }
 
-void binary_file_image()
+void binary_file_image(Image *photo, char * file_name)
 {
-	// same but for binary files
+	//free_image(photo); // trebie rezolvat pt mem leak dar momentan whatever
+	FILE *file = fopen(file_name,"rb");
+	if (!file) {
+        printf("Failed to load %s\n", file_name);
+        return; // Failed to load
+    }
+	fseek(file,2,SEEK_SET);
+	fread(photo->length,sizeof(int),1,file);
+	fread(photo->length,sizeof(int),1,file);
+	fread(photo->length,sizeof(int),1,file);
 }
 
 void handle_load(Image *photo, char *file_name)
@@ -150,10 +159,15 @@ void handle_load(Image *photo, char *file_name)
 		photo->pixel_depth = 3;
 		text_file_image(photo,file_name);
 	}
-	else if(format == "P5" || format == "P6")
+	if(!strcmp(format,"P5"))
 	{
-		//binary_file_image();
-		// split these up;
+		photo->pixel_depth = 1;
+		binary_file_image(photo,file_name);
+	}
+	if(!strcmp(format,"P6"))
+	{
+		photo->pixel_depth = 3;
+		binary_file_image(photo,file_name);
 	}
 	return;
 }
@@ -164,7 +178,7 @@ void get_input(Image *photo)
 	char input[101] = {'\0'};
 	char *mode;
 	char *argument;
-	const char *commands[] = {"LOAD", "CROP", "SAVE", "EXIT", "SELECT",
+	const char *commands[] = {"LOAD", "CROP", "SAVE", "EXIT\n", "SELECT",
 							  "HISTOGRAM", "EQUALIZE", "ROTATE"};
 	void (*handlers[])() = {handle_load, handle_crop, handle_save, handle_exit,
                             handle_select, handle_histogram, handle_equalize, handle_rotate};
@@ -184,10 +198,10 @@ void get_input(Image *photo)
 			handlers[i](photo,argument);
 			break;
 		}
-	}
-	if(!strcmp(mode,"EXIT\n"))
-	{
-		return;
+		if(i == list_length-1)
+		{
+			printf("INVALID\n");
+		}
 	}
 	get_input(photo);
 }
