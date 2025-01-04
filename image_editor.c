@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
 //#include <handlers.h>
 
 /*
@@ -101,7 +102,7 @@ void handle_select(Image *photo,char *argument)
 	sort_int(&x1,&x2);
 	sort_int(&y1,&y2);
 	// checks if out of bounds (adica nush daca trebuie pus -1 la fiecare coordonata sau nu depinde daca poti sa iei marginea sau nu)
-	if(x1-1 > photo->length || x2-1 > photo->length || y1-1 > photo->width || y2-1 > photo->width)
+	if(x1 > photo->length || x2 > photo->length || y1 > photo->width || y2 > photo->width)
 	{
 		printf("Invalid set of coordinates\n");
 		return;
@@ -123,6 +124,7 @@ void freeImage(Image *photo) {
     }
 }
 
+
 // trebuie verificat ce considera ei ca fiind out of bounds pls ( defapt asta ar fi la select dar whatever)
 void handle_crop(Image *photo,char *argument)
 {
@@ -143,13 +145,6 @@ void handle_crop(Image *photo,char *argument)
 	}
 	photo->length = photo->x2 - photo->x1;
 	photo->width = photo->y2 - photo->y1;
-	handle_select(photo,"ALL\n");
-	for (int i = 0; i < photo->width; i++) {
-        for (int j = 0; j < photo->length * photo->pixel_depth; j++) {
-            printf("%d ", photo->pixels[i][j]); // to remove later
-        }
-        printf("\n");
-    }
 	printf("Image cropped\n");
 }
 
@@ -162,7 +157,22 @@ void handle_exit(Image *photo,char *argument)
 {
 	exit(0);
 }
-
+void handle_print(Image *photo,char *argument)
+{
+	if(!photo->length)
+	{
+		printf("NO IMAGE LOADED\n");
+		return;
+	}
+	for(int i = 0;i < photo->width; i++)
+	{
+		for(int j =0; j < photo->length * photo->pixel_depth; j++)
+		{
+			printf("%d ",photo->pixels[i][j]);
+		}
+		printf("\n");
+	}
+}
 void handle_histogram(Image *photo,char *argument)
 {
 	return;
@@ -171,11 +181,145 @@ void handle_equalize(Image *photo,char *argument)
 {
 	return;
 }
-void handle_rotate(Image *photo,char *argument)
-{
-	return;
+
+void rotate_grayscale(Image *photo, int degrees) {
+    int rows = photo->x2 - photo->x1;
+    int cols = photo->y2 - photo->y1;
+
+    // Temporary matrix for the rotated submatrix
+    int **temp = (int **)malloc(cols * sizeof(int *));
+    for (int i = 0; i < cols; i++) {
+        temp[i] = (int *)malloc(rows * sizeof(int));
+    }
+
+    if (degrees == 90) {
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                temp[j][rows - i - 1] = photo->pixels[photo->x1 + i][photo->y1 + j];
+            }
+        }
+    } else if (degrees == 180) {
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                temp[rows - i - 1][cols - j - 1] = photo->pixels[photo->x1 + i][photo->y1 + j];
+            }
+        }
+    } else if (degrees == 270) {
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                temp[cols - j - 1][i] = photo->pixels[photo->x1 + i][photo->y1 + j];
+            }
+        }
+    } else if (degrees == 360) {
+        // 360-degree rotation is a no-op; copy the original
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                temp[i][j] = photo->pixels[photo->x1 + i][photo->y1 + j];
+            }
+        }
+    }
+
+    // Copy rotated submatrix back to the original matrix
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            photo->pixels[photo->x1 + i][photo->y1 + j] = temp[i][j];
+        }
+    }
+
+    // Free the temporary matrix
+    for (int i = 0; i < cols; i++) {
+        free(temp[i]);
+    }
+    free(temp);
+
+	printf("Rotated %d\n", degrees);
 }
 
+void rotate_rgb(Image *photo, int degrees) {
+    int rows = photo->x2 - photo->x1;
+    int cols = photo->y2 - photo->y1;
+
+    // Temporary matrix for the rotated submatrix
+    int **temp = (int **)malloc(cols * sizeof(int *));
+    for (int i = 0; i < cols; i++) {
+        temp[i] = (int *)malloc(rows * 3 * sizeof(int)); // 3 channels per pixel
+    }
+
+    if (degrees == 90) {
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                for (int k = 0; k < 3; k++) {
+                    temp[j][(rows - i - 1) * 3 + k] = photo->pixels[photo->x1 + i][photo->y1 * 3 + j * 3 + k];
+                }
+            }
+        }
+    } else if (degrees == 180) {
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                for (int k = 0; k < 3; k++) {
+                    temp[rows - i - 1][(cols - j - 1) * 3 + k] = photo->pixels[photo->x1 + i][photo->y1 * 3 + j * 3 + k];
+                }
+            }
+        }
+    } else if (degrees == 270) {
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                for (int k = 0; k < 3; k++) {
+                    temp[cols - j - 1][i * 3 + k] = photo->pixels[photo->x1 + i][photo->y1 * 3 + j * 3 + k];
+                }
+            }
+        }
+    } else if (degrees == 360) {
+        // 360-degree rotation is a no-op; copy the original
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                for (int k = 0; k < 3; k++) {
+                    temp[i][j * 3 + k] = photo->pixels[photo->x1 + i][photo->y1 * 3 + j * 3 + k];
+                }
+            }
+        }
+    }
+
+    // Copy rotated submatrix back to the original matrix
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            for (int k = 0; k < 3; k++) {
+                photo->pixels[photo->x1 + i][photo->y1 * 3 + j * 3 + k] = temp[i][j * 3 + k];
+            }
+        }
+    }
+
+    // Free the temporary matrix
+    for (int i = 0; i < cols; i++) {
+        free(temp[i]);
+    }
+    free(temp);
+
+	printf("Rotated %d\n", degrees);
+}
+
+void handle_rotate(Image *photo, char *argument) {
+    // Parse the degree of rotation from the argument
+    int degrees = atoi(argument);
+    // Normalize degrees to the range [0, 360]
+    if (degrees == -90) {
+    degrees = 270; // Rotating 90 degrees left is equivalent to 270 degrees right
+	} else if (degrees == -270) {
+    degrees = 90; // Rotating 270 degrees left is equivalent to 90 degrees right
+	} else if (degrees == -180) {
+    degrees = 180; // Rotating 180 degrees left is the same as rotating 180 degrees right
+	} else if (degrees == -360 || degrees == 360) {
+    degrees = 0; // Full circle rotation has no effect
+	}
+    // Check pixel depth and call the appropriate function
+    if (photo->pixel_depth == 1) {
+        rotate_grayscale(photo, degrees);
+    } else if (photo->pixel_depth == 3) {
+        rotate_rgb(photo, degrees);
+    } else {
+        fprintf(stderr, "Unsupported pixel depth: %d\n", photo->pixel_depth);
+    }
+}
 
 void text_file_image(Image *photo, char * file_name)
 {
@@ -212,10 +356,9 @@ void text_file_image(Image *photo, char * file_name)
 	for (int i = 0; i < photo->width; i++) {
         for (int j = 0; j < photo->length * photo->pixel_depth; j++) {
             fscanf(file, "%d", &photo->pixels[i][j]);
-            printf("%d ", photo->pixels[i][j]); // to remove later
         }
-        printf("\n");
     }
+	printf("Loaded %s\n",file_name);
 	fclose(file);
 }
 
@@ -259,15 +402,8 @@ void binary_file_image(Image *photo, char * file_name)
     for (int i = 0; i < photo->width; i++) {
         fread(photo->pixels[i], sizeof(int), photo->length * photo->pixel_depth, file);
     }
-
-	for (int i = 0; i < photo->width; i++) {
-        for (int j = 0; j < photo->length * photo->pixel_depth; j++) {
-            printf("%d ", photo->pixels[i][j]); // to remove later
-        }
-        printf("\n");
-    }
-
     fclose(file);
+	printf("Loaded %s\n",file_name);
     return;
 }
 
@@ -275,7 +411,8 @@ void handle_load(Image *photo, char *file_name)
 {
 	char format[3] = {0};
 	if(file_name == NULL) {
-		printf("file_name invalid, %d", __LINE__);
+		printf("Failed to load %s\n", file_name);
+		return;
 	}
 	int l = strlen(file_name);
 	file_name[l-1] = '\0';
@@ -310,16 +447,15 @@ void handle_load(Image *photo, char *file_name)
 	return;
 }
 
-
 void get_input(Image *photo)
 {
 	char input[101] = {'\0'};
 	char *mode;
 	char *argument;
 	const char *commands[] = {"LOAD", "CROP\n", "SAVE", "EXIT\n", "SELECT",
-							  "HISTOGRAM", "EQUALIZE", "ROTATE"};
+							  "HISTOGRAM", "EQUALIZE", "ROTATE", "PRINT\n"};
 	void (*handlers[])() = {handle_load, handle_crop, handle_save, handle_exit,
-                            handle_select, handle_histogram, handle_equalize, handle_rotate};
+                            handle_select, handle_histogram, handle_equalize, handle_rotate, handle_print};
 	int list_length = sizeof(commands) / sizeof(commands[0]);
 
 	if (fgets(input, sizeof(input), stdin) == NULL) {
