@@ -8,8 +8,8 @@
 to do
 
 1 ignorare comentarii cand citesti poze |text?|
-2 loop in care poti sa bagi infinitate comenzi pana EXIT
-3 abilitatea de a citi alte imagini consectuive de marimi diferite
+4 testeaza ce se intampla cu selectia cand dai load la alta poza daca pica ceva teste suspecte
+
 */
 
 typedef struct __attribute__((packed)){
@@ -182,109 +182,113 @@ void handle_equalize(Image *photo,char *argument)
 	return;
 }
 
-void rotate_grayscale(Image *photo, int degrees) {
-    int rows = photo->x2 - photo->x1;
-    int cols = photo->y2 - photo->y1;
+void rotate_full_matrix(Image *photo, int degrees) {
+    int new_width = (degrees == 90 || degrees == 270) ? photo->length : photo->width;
+    int new_length = (degrees == 90 || degrees == 270) ? photo->width : photo->length;
 
-    // Temporary matrix for the rotated submatrix
-    int **temp = (int **)malloc(cols * sizeof(int *));
-    for (int i = 0; i < cols; i++) {
-        temp[i] = (int *)malloc(rows * sizeof(int));
+    // Allocate a new matrix for the rotated image
+    int **rotated_pixels = (int **)malloc(new_length * sizeof(int *));
+    for (int i = 0; i < new_length; i++) {
+        rotated_pixels[i] = (int *)malloc(new_width * photo->pixel_depth * sizeof(int)); // 3 channels per pixel
     }
 
     if (degrees == 90) {
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                temp[j][rows - i - 1] = photo->pixels[photo->x1 + i][photo->y1 + j];
+        for (int i = 0; i < photo->length; i++) {
+            for (int j = 0; j < photo->width; j++) {
+                for (int k = 0; k < photo->pixel_depth; k++) {
+                    rotated_pixels[j][(photo->length - 1 - i) * photo->pixel_depth + k] = photo->pixels[i][j * photo->pixel_depth + k];
+                }
             }
         }
     } else if (degrees == 180) {
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                temp[rows - i - 1][cols - j - 1] = photo->pixels[photo->x1 + i][photo->y1 + j];
+        for (int i = 0; i < photo->length; i++) {
+            for (int j = 0; j < photo->width; j++) {
+                for (int k = 0; k < photo->pixel_depth; k++) {
+                    rotated_pixels[photo->length - 1 - i][(photo->width - 1 - j) * photo->pixel_depth + k] = photo->pixels[i][j * photo->pixel_depth + k];
+                }
             }
         }
     } else if (degrees == 270) {
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                temp[cols - j - 1][i] = photo->pixels[photo->x1 + i][photo->y1 + j];
-            }
-        }
-    } else if (degrees == 360) {
-        // 360-degree rotation is a no-op; copy the original
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                temp[i][j] = photo->pixels[photo->x1 + i][photo->y1 + j];
+        for (int i = 0; i < photo->length; i++) {
+            for (int j = 0; j < photo->width; j++) {
+                for (int k = 0; k < photo->pixel_depth; k++) {
+                    rotated_pixels[photo->width - 1 - j][i * photo->pixel_depth + k] = photo->pixels[i][j * photo->pixel_depth + k];
+                }
             }
         }
     }
+	else
+	{
+		printf("WRONG DEGREE NIGGA\n");
+	}
 
-    // Copy rotated submatrix back to the original matrix
-    for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
-            photo->pixels[photo->x1 + i][photo->y1 + j] = temp[i][j];
-        }
+    // Free the old pixel matrix and assign the new one
+    for (int i = 0; i < photo->length; i++) {
+        free(photo->pixels[i]);
     }
+    free(photo->pixels);
 
-    // Free the temporary matrix
-    for (int i = 0; i < cols; i++) {
-        free(temp[i]);
-    }
-    free(temp);
-
-	printf("Rotated %d\n", degrees);
+    photo->pixels = rotated_pixels;
+    photo->width = new_width;
+    photo->length = new_length;
 }
 
-void rotate_rgb(Image *photo, int degrees) {
-    int rows = photo->x2 - photo->x1;
+void rotate_selection(Image *photo, int degrees) {
+
+ 	int rows = photo->x2 - photo->x1;
     int cols = photo->y2 - photo->y1;
+	// presupunem ca unghiul nu este mai mare de +/- (360)
+	if (degrees == -90) {
+    degrees = 270; // Rotating 90 degrees left is equivalent to 270 degrees right
+	} else if (degrees == -270) {
+    degrees = 90; // Rotating 270 degrees left is equivalent to 90 degrees right
+	} else if (degrees == -180) {
+    degrees = 180; // Rotating 180 degrees left is the same as rotating 180 degrees right
+	}
+
 
     // Temporary matrix for the rotated submatrix
     int **temp = (int **)malloc(cols * sizeof(int *));
     for (int i = 0; i < cols; i++) {
-        temp[i] = (int *)malloc(rows * 3 * sizeof(int)); // 3 channels per pixel
+        temp[i] = (int *)malloc(rows * photo->pixel_depth * sizeof(int)); // 3 channels per pixel
     }
-
+	// daca o sa mai am timp
+	// asta poate fi scris mai frumos cu un swtich pt ca toate 3 forurile sunt la fel regardless
+	// for for for switch(pixrl_depth) type shii
     if (degrees == 90) {
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < cols; j++) {
-                for (int k = 0; k < 3; k++) {
-                    temp[j][(rows - i - 1) * 3 + k] = photo->pixels[photo->x1 + i][photo->y1 * 3 + j * 3 + k];
+                for (int k = 0; k < photo->pixel_depth; k++) {
+                    temp[j][(rows - i - 1) * photo->pixel_depth + k] = photo->pixels[photo->x1 + i][photo->y1 *  photo->pixel_depth + j *  photo->pixel_depth + k];
                 }
             }
         }
     } else if (degrees == 180) {
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < cols; j++) {
-                for (int k = 0; k < 3; k++) {
-                    temp[rows - i - 1][(cols - j - 1) * 3 + k] = photo->pixels[photo->x1 + i][photo->y1 * 3 + j * 3 + k];
+                for (int k = 0; k < photo->pixel_depth; k++) {
+                    temp[rows - i - 1][(cols - j - 1) * photo->pixel_depth + k] = photo->pixels[photo->x1 + i][photo->y1 * photo->pixel_depth + j * photo->pixel_depth + k];
                 }
             }
         }
     } else if (degrees == 270) {
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < cols; j++) {
-                for (int k = 0; k < 3; k++) {
-                    temp[cols - j - 1][i * 3 + k] = photo->pixels[photo->x1 + i][photo->y1 * 3 + j * 3 + k];
-                }
-            }
-        }
-    } else if (degrees == 360) {
-        // 360-degree rotation is a no-op; copy the original
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                for (int k = 0; k < 3; k++) {
-                    temp[i][j * 3 + k] = photo->pixels[photo->x1 + i][photo->y1 * 3 + j * 3 + k];
+                for (int k = 0; k < photo->pixel_depth; k++) {
+                    temp[cols - j - 1][i * photo->pixel_depth + k] = photo->pixels[photo->x1 + i][photo->y1 * photo->pixel_depth + j * photo->pixel_depth + k];
                 }
             }
         }
     }
-
+	else
+	{
+		printf("WRONG DEGREE NIGGA\n");
+	}
     // Copy rotated submatrix back to the original matrix
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
-            for (int k = 0; k < 3; k++) {
-                photo->pixels[photo->x1 + i][photo->y1 * 3 + j * 3 + k] = temp[i][j * 3 + k];
+            for (int k = 0; k < photo->pixel_depth; k++) {
+                photo->pixels[photo->x1 + i][photo->y1 * photo->pixel_depth + j * photo->pixel_depth + k] = temp[i][j * photo->pixel_depth + k];
             }
         }
     }
@@ -294,31 +298,28 @@ void rotate_rgb(Image *photo, int degrees) {
         free(temp[i]);
     }
     free(temp);
-
-	printf("Rotated %d\n", degrees);
 }
 
 void handle_rotate(Image *photo, char *argument) {
     // Parse the degree of rotation from the argument
     int degrees = atoi(argument);
     // Normalize degrees to the range [0, 360]
-    if (degrees == -90) {
-    degrees = 270; // Rotating 90 degrees left is equivalent to 270 degrees right
-	} else if (degrees == -270) {
-    degrees = 90; // Rotating 270 degrees left is equivalent to 90 degrees right
-	} else if (degrees == -180) {
-    degrees = 180; // Rotating 180 degrees left is the same as rotating 180 degrees right
-	} else if (degrees == -360 || degrees == 360) {
-    degrees = 0; // Full circle rotation has no effect
+	if(!(degrees%360))
+	{
+		return;
 	}
+    else if(!photo->x1 && !photo->y1 && photo->x2 == photo->length && photo->y2 == photo->width && photo->width != photo->length)
+	{
+		rotate_full_matrix(photo,degrees);
+		printf("WOW\n");
+	}
+	else
+	{
+		rotate_selection(photo,degrees);
+	}
+	printf("Rotated %d\n", degrees);
     // Check pixel depth and call the appropriate function
-    if (photo->pixel_depth == 1) {
-        rotate_grayscale(photo, degrees);
-    } else if (photo->pixel_depth == 3) {
-        rotate_rgb(photo, degrees);
-    } else {
-        fprintf(stderr, "Unsupported pixel depth: %d\n", photo->pixel_depth);
-    }
+	// verifica instant daca selectia e ALL, daca nu baga ce e mai sus cu schimbarea de unghiuri in fucntia respectiva ca sa poti sa printezi ce trebuie
 }
 
 void text_file_image(Image *photo, char * file_name)
@@ -483,11 +484,10 @@ void get_input(Image *photo)
 int main()
 {
 	Image photo;
-	initialize_struct(&photo);
 
+	initialize_struct(&photo);
 	get_input(&photo);
 	freeImage(&photo);
-
 	initialize_struct(&photo);
 	return 0;
 }
