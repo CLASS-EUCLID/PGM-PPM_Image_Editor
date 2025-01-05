@@ -4,10 +4,7 @@
 
 /*
 to do
-
 1 ignorare comentarii cand citesti poze |text?|
-4 testeaza ce se intampla cu selectia cand dai load la alta poza daca pica ceva teste suspecte
-5 all rotations have inverted column/row logic, fix it
 */
 
 //  __attribute__((packed))
@@ -49,32 +46,82 @@ void initialize_struct(Image *photo)
 	photo->y2 = 0;
 }
 
-// ceva gresit ori aici ori in modul in care e pusa poza in matrice
-void free_image(Image *photo) {
-    if (photo == NULL) return; // If the image structure itself is NULL, do nothing.
+void get_kernel(int *kernel,char *filter)
+{
+    // might need floats instead
+    double filters[4][3][3] = {
+        {{-1,-1,-1},{-1,8,-1},{-1,-1,-1}},
+        {{0,-1,0},{-1,5,-1},{0,-1,0}},
+        {{1/9,1/9,1/9},{1/9,1/9,1/9},{1/9,1/9,1/9}},
+        {{1/16,2/16,1/16},{2/16,4/16,2/16},{1/16,2/16,1/16}}
+    };
+    if(!strcmp(filter,"SHARPEN"))
+    {
 
-    // Free each row of the pixels
+    }
+    if(!strcmp(filter,"EDGE"))
+    {
+
+    }
+    if(!strcmp(filter,"GAUSSIAN_BLUR"))
+    {
+
+    }
+    if(!strcmp(filter,"BLUR"))
+    {
+
+    }
+}
+
+void handle_apply(Image *photo,char *argument)
+{
+    if(photo->pixel_depth == 1)
+    {
+        printf("Easy, Charlie Chaplin\n");
+        return;
+    }
+    if(!photo->length)
+    {
+        printf("No image loaded\n");
+        return;
+    }
+
+    int kernel[3][3];
+    int **temp;
+
+    get_kernel(&kernel,argument);
+    temp = (int **)calloc(photo->width , sizeof(int *));
+    if (temp == NULL) {
+        perror("Failed to allocate row pointers");
+        return;
+    }
+    // Allocate memory for each row
     for (int i = 0; i < photo->width; i++) {
-        if (photo->pixels[i] != NULL) {
-            free(photo->pixels[i]);  // Free the row
+        (temp)[i] = (int *)calloc(photo->length * photo->pixel_depth , sizeof(int));
+        // replace this with the freeImage() if time allows
+        if ((temp)[i] == NULL) {
+            perror("Failed to allocate row");
+            // Free any previously allocated rows
+            for (int j = 0; j < i; j++) {
+                free((temp)[j]);
+            }
+            free(temp);
+            *temp = NULL;
+            return;
         }
     }
+    int sum = 0;
+    for (int i = 0; i < photo->width; i++) {
+        for (int j = 0; j < photo->length * photo->pixel_depth; j++) {
+            sum = 0;
+            if(j == 0 || i == 0 || j == (photo->length * photo->pixel_depth -1) || i == photo->width-1)
+                temp[i][j] = 0;
+            else
+            {
 
-    // Free the row pointers
-    if (photo->pixels != NULL) {
-        free(photo->pixels);  // Free the array of row pointers
+            }
+        }
     }
-
-    // Reset the fields of the structure
-    photo->pixels = NULL;
-    photo->width = 0;
-    photo->length = 0;
-    photo->max_value = 0;
-    photo->pixel_depth = 0;
-    photo->x1 = 0;
-    photo->x2 = 0;
-	photo->y1 = 0;
-    photo->y2 = 0;
 }
 
 void handle_select(Image *photo,char *argument)
@@ -114,41 +161,68 @@ void handle_select(Image *photo,char *argument)
 }
 
 void freeImage(Image *photo) {
-    if (photo) {
+    if (photo && photo->pixels) {
         for (int i = 0; i < photo->width; i++) {
             free(photo->pixels[i]);
         }
         free(photo->pixels);
-        //free(photo);
+        photo->pixels = NULL;
     }
 }
 
 // am o presimitre ca e un mem leak aici ca nu omor memoria care era inainte de crop
 // trebuie verificat ce considera ei ca fiind out of bounds pls ( defapt asta ar fi la select dar whatever)
-void handle_crop(Image *photo,char *argument)
-{
-	if(!photo->length)
-	{
-		printf("No image loaded\n");
-		return;
-	}
-	int a = 0,b = 0;
-	for(int i = photo->y1;i < photo->y2; i++)
-	{
-		for(int j = photo->x1 * photo->pixel_depth; j < photo->x2 * photo->pixel_depth; j++)
-		{
-			photo->pixels[a][b++] = photo->pixels[i][j];
-		}
-		a++;
-		b = 0;
-	}
-	photo->length = photo->x2 - photo->x1;
-	photo->width = photo->y2 - photo->y1;
+void handle_crop(Image *photo, char *argument) {
+    if (!photo->length || !photo->width) {
+        printf("No image loaded\n");
+        return;
+    }
+
+    // Calculate the dimensions of the cropped area
+    int new_width = photo->y2 - photo->y1;
+    int new_length = photo->x2 - photo->x1;
+
+    // Allocate memory for the new cropped matrix
+    int **new_pixels = (int **)calloc(new_width, sizeof(int *));
+    if (!new_pixels) {
+        perror("Failed to allocate memory for cropped matrix");
+        return;
+    }
+
+    for (int i = 0; i < new_width; i++) {
+        new_pixels[i] = (int *)calloc(new_length * photo->pixel_depth, sizeof(int));
+        if (!new_pixels[i]) {
+            perror("Failed to allocate memory for cropped matrix row");
+            // Free any previously allocated rows
+            for (int j = 0; j < i; j++) {
+                free(new_pixels[j]);
+            }
+            free(new_pixels);
+            return;
+        }
+    }
+
+    // Copy the selected portion of the original matrix to the new matrix
+    int a = 0, b = 0;
+    for (int i = photo->y1; i < photo->y2; i++) {
+        for (int j = photo->x1 * photo->pixel_depth; j < photo->x2 * photo->pixel_depth; j++) {
+            new_pixels[a][b++] = photo->pixels[i][j];
+        }
+        a++;
+        b = 0;
+    }
+
+    // Free the original matrix
+    freeImage(photo);
+    // Update the photo structure
+    photo->pixels = new_pixels;
+    photo->length = new_length;
+    photo->width = new_width;
     photo->x1 = 0;
     photo->y1 = 0;
-    photo->x2 = photo->length;
-    photo->y2 = photo->width;
-	printf("Image cropped\n");
+    photo->x2 = new_length;
+    photo->y2 = new_width;
+    printf("Image cropped\n");
 }
 
 void save_binary_image(Image *photo, char *file_path) {
@@ -266,6 +340,7 @@ void handle_exit(Image *photo,char *argument)
         printf("No image loaded\n");
         return;
     }
+    freeImage(photo);
 	exit(0);
 }
 void handle_print(Image *photo,char *argument)
@@ -345,6 +420,12 @@ void rotate_full_matrix(Image *photo, int degrees) {
 void rotate_selection(Image *photo, int degrees) {
     int cols = photo->x2 - photo->x1; // Number of columns (x-axis range)
     int rows = photo->y2 - photo->y1; // Number of rows (y-axis range)
+
+    if(cols != rows)
+    {
+        printf("Non-square crop can't be done");
+        return;
+    }
 
     // Normalize negative rotations
     if (degrees == -90) {
@@ -439,14 +520,13 @@ void handle_rotate(Image *photo, char *argument) {
 void text_file_image(Image *photo, char * file_name)
 {
 	// this function will take the current loaded file and repplace it with the new one
-	//free_image(photo); // trebie rezolvat pt mem leak dar momentan whatever
 	freeImage(photo);
 	FILE *file = fopen(file_name,"r");
 	fseek(file,2,SEEK_SET);
 	fscanf(file," %d %d %d",&photo->length,&photo->width,&photo->max_value);
 
 	// Allocate memory for the row pointers
-    photo->pixels = (int **)calloc(photo->width, sizeof(int *));
+    photo->pixels = (int **)calloc(photo->width , sizeof(int *));
     if (photo->pixels == NULL) {
         perror("Failed to allocate row pointers");
 		fclose(file);
@@ -455,7 +535,7 @@ void text_file_image(Image *photo, char * file_name)
 
     // Allocate memory for each row
     for (int i = 0; i < photo->width; i++) {
-        (photo->pixels)[i] = (int *)calloc(photo->length * photo->pixel_depth, sizeof(int));
+        (photo->pixels)[i] = (int *)calloc(photo->length * photo->pixel_depth , sizeof(int));
         if ((photo->pixels)[i] == NULL) {
             perror("Failed to allocate row");
             // Free any previously allocated rows
@@ -573,9 +653,9 @@ void get_input(Image *photo)
 	char input[101] = {'\0'};
 	char *mode;
 	char *argument;
-	const char *commands[] = {"LOAD", "CROP\n", "SAVE", "EXIT", "SELECT",
+	const char *commands[] = {"APPLY","LOAD", "CROP\n", "SAVE", "EXIT", "SELECT",
 							  "HISTOGRAM", "EQUALIZE", "ROTATE", "PRINT\n"};
-	void (*handlers[])() = {handle_load, handle_crop, handle_save, handle_exit,
+	void (*handlers[])() = {handle_apply,handle_load, handle_crop, handle_save, handle_exit,
                             handle_select, handle_histogram, handle_equalize, handle_rotate, handle_print};
 	int list_length = sizeof(commands) / sizeof(commands[0]);
 
@@ -608,6 +688,6 @@ int main()
 	initialize_struct(&photo);
 	get_input(&photo);
 	freeImage(&photo);
-	initialize_struct(&photo);
+	//initialize_struct(&photo);
 	return 0;
 }
