@@ -1,0 +1,51 @@
+// ROTATIA MATRICII COMPLETE
+// ASIGURA-TE CA SELECTEZI DUPA FIECRARE ROTATIE CE VREI
+
+void rotate_full_matrix(Image *photo, int degrees) {
+    // Normalize degrees to [0, 360)
+    degrees = (degrees % 360 + 360) % 360;
+
+    int new_width = (degrees == 90 || degrees == 270) ? photo->length : photo->width;
+    int new_length = (degrees == 90 || degrees == 270) ? photo->width : photo->length;
+    // Allocate a new matrix for the rotated image
+    int **rotated_pixels = (int **)malloc(new_width * sizeof(int *));
+    for (int i = 0; i < new_width; i++) {
+        rotated_pixels[i] = (int *)malloc(new_length * photo->pixel_depth * sizeof(int)); // 3 channels per pixel
+    }
+    if (degrees == 90) {
+        for (int i = 0; i < photo->width; i++) {       // Rows
+            for (int j = 0; j < photo->length; j++) {  // Columns
+                for (int k = 0; k < photo->pixel_depth; k++) {
+                    rotated_pixels[j][(photo->width - 1 - i) * photo->pixel_depth + k] = photo->pixels[i][j * photo->pixel_depth + k];
+                }
+            }
+        }
+    } else if (degrees == 180) {
+        for (int i = 0; i < photo->width; i++) {       // Rows
+            for (int j = 0; j < photo->length; j++) {  // Columns
+                for (int k = 0; k < photo->pixel_depth; k++) {
+                    rotated_pixels[photo->width - 1 - i][(photo->length - 1 - j) * photo->pixel_depth + k] = photo->pixels[i][j * photo->pixel_depth + k];
+                }
+            }
+        }
+    } else if (degrees == 270) {
+        for (int i = 0; i < photo->width; i++) {       // Rows
+            for (int j = 0; j < photo->length; j++) {  // Columns
+                for (int k = 0; k < photo->pixel_depth; k++) {
+                    rotated_pixels[photo->length - 1 - j][i * photo->pixel_depth + k] = photo->pixels[i][j * photo->pixel_depth + k];
+                }
+            }
+        }
+    }
+
+    // Free the old pixel matrix and assign the new one
+    for (int i = 0; i < photo->width; i++) {
+        free(photo->pixels[i]);
+    }
+    free(photo->pixels);
+
+    // Update photo properties
+    photo->pixels = rotated_pixels;
+    photo->width = new_width;   // Update the number of rows
+    photo->length = new_length; // Update the number of columns
+}
