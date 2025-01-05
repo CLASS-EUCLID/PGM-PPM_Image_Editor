@@ -480,18 +480,19 @@ void text_file_image(Image *photo, char * file_name)
 void binary_file_image(Image *photo, char * file_name)
 {
 	//free_image(photo); // trebie rezolvat pt mem leak dar momentan whatever
-	FILE *file = fopen(file_name, "rb");
+	freeImage(photo);
+    FILE *file = fopen(file_name, "rb");
+
     if (!file) {
         perror("Failed to open file");
         return;
     }
+    fseek(file,2,SEEK_SET);
     // Read image dimensions and properties
-    fread(&photo->length, sizeof(int), 1, file);   // Read number of columns
-    fread(&photo->width, sizeof(int), 1, file);    // Read number of rows
-    fread(&photo->max_value, sizeof(int), 1, file); // Read max value
-
+    fscanf(file," %d %d %d\n",&photo->length,&photo->width,&photo->max_value);
     // Allocate memory for 2D pixel array
     photo->pixels = (int **)calloc(photo->width, sizeof(int *));
+
     if (!photo->pixels) {
         perror("Failed to allocate memory for pixel rows");
         free(photo);
@@ -515,7 +516,12 @@ void binary_file_image(Image *photo, char * file_name)
 
     // Read pixel data into the 2D array
     for (int i = 0; i < photo->width; i++) {
-        fread(photo->pixels[i], sizeof(int), photo->length * photo->pixel_depth, file);
+        for(int j = 0;j < photo->length * photo->pixel_depth;j++)
+        {
+            unsigned char pixel_value;
+            fread(&pixel_value, sizeof(unsigned char),1, file);
+            photo->pixels[i][j] = pixel_value;
+        }
     }
     fclose(file);
 	printf("Loaded %s\n",file_name);
@@ -590,7 +596,6 @@ void get_input(Image *photo)
 		if(i == list_length-1)
 		{
 			printf("INVALID\n");
-            printf("%s %s\n", mode,argument);
 		}
 	}
 	get_input(photo);
