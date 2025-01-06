@@ -17,6 +17,16 @@ typedef struct{
 	int x1,x2,y1,y2; // Values that represent the selected portion of the image
 } Image;
 
+void freeImage(Image *photo) {
+    if (photo && photo->pixels) {
+        for (int i = 0; i < photo->width; i++) {
+            free(photo->pixels[i]);
+        }
+        free(photo->pixels);
+        photo->pixels = NULL;
+    }
+}
+
 void swap(int *x, int *y)
 {
 	int z = 0;
@@ -46,30 +56,43 @@ void initialize_struct(Image *photo)
 	photo->y2 = 0;
 }
 
-void get_kernel(int *kernel,char *filter)
+void get_kernel(double kernel[3][3], char *filter)
 {
     // might need floats instead
     double filters[4][3][3] = {
         {{-1,-1,-1},{-1,8,-1},{-1,-1,-1}},
         {{0,-1,0},{-1,5,-1},{0,-1,0}},
-        {{1/9,1/9,1/9},{1/9,1/9,1/9},{1/9,1/9,1/9}},
-        {{1/16,2/16,1/16},{2/16,4/16,2/16},{1/16,2/16,1/16}}
+        {{1.0/9,1.0/9,1.0/9},{1.0/9,1.0/9,1.0/9},{1.0/9,1.0/9,1.0/9}},
+        {{1.0/16,2.0/16,1.0/16},{2.0/16,4.0/16,2.0/16},{1.0/16,2.0/16,1.0/16}}
     };
-    if(!strcmp(filter,"SHARPEN"))
+    int selection = -1;
+    if(!strcmp(filter,"EDGE\n"))
     {
-
+        selection = 0;
     }
-    if(!strcmp(filter,"EDGE"))
+    if(!strcmp(filter,"SHARPEN\n"))
     {
-
+        selection = 1;
     }
-    if(!strcmp(filter,"GAUSSIAN_BLUR"))
+    if(!strcmp(filter,"BLUR\n"))
     {
-
+        selection = 2;
     }
-    if(!strcmp(filter,"BLUR"))
+    if(!strcmp(filter,"GAUSSIAN_BLUR\n"))
     {
-
+        selection = 3;
+    }
+    if(selection == -1)
+    {
+        printf("APPLY parameter invalid\n");
+        return;
+    }
+    for(int i = 0;i<3;i++)
+    {
+        for(int j = 0;j<3;j++)
+        {
+            kernel[i][j] = filters[selection][i][j];
+        }
     }
 }
 
@@ -86,10 +109,10 @@ void handle_apply(Image *photo,char *argument)
         return;
     }
 
-    int kernel[3][3];
+    double kernel[3][3];
     int **temp;
 
-    get_kernel(&kernel,argument);
+    get_kernel(kernel,argument);
     temp = (int **)calloc(photo->width , sizeof(int *));
     if (temp == NULL) {
         perror("Failed to allocate row pointers");
@@ -114,14 +137,33 @@ void handle_apply(Image *photo,char *argument)
     for (int i = 0; i < photo->width; i++) {
         for (int j = 0; j < photo->length * photo->pixel_depth; j++) {
             sum = 0;
-            if(j == 0 || i == 0 || j == (photo->length * photo->pixel_depth -1) || i == photo->width-1)
-                temp[i][j] = 0;
+            if(i == 0 || j < 3 || j >= (photo->length * photo->pixel_depth - 3) || i == photo->width - 1)
+                temp[i][j] = photo->pixels[i][j];
             else
             {
-
+                sum += photo->pixels[i-1][j-3] * kernel[0][0];
+                sum += photo->pixels[i-1][j] * kernel[0][1];
+                sum += photo->pixels[i-1][j+3] * kernel[0][2];
+                sum += photo->pixels[i][j-3] * kernel[1][0];
+                sum += photo->pixels[i][j] * kernel[1][1];
+                sum += photo->pixels[i][j+3] * kernel[1][2];
+                sum += photo->pixels[i+1][j-3] * kernel[2][0];
+                sum += photo->pixels[i+1][j] * kernel[2][1];
+                sum += photo->pixels[i+1][j+3] * kernel[2][2];
+                if(sum < 0)
+                    sum = 0;
+                if(sum > 255)
+                    sum = 255;
+                temp[i][j] = sum;
             }
         }
     }
+    argument[strlen(argument)-1] = '\0';
+    printf("APPLY %s done\n",argument);
+     // Free the original matrix
+    freeImage(photo);
+    // Update the photo structure
+    photo->pixels = temp;
 }
 
 void handle_select(Image *photo,char *argument)
@@ -158,16 +200,6 @@ void handle_select(Image *photo,char *argument)
 	photo->x2 = x2;
 	photo->y2 = y2;
 	printf("Selected %d %d %d %d\n",photo->x1,photo->y1,photo->x2,photo->y2);
-}
-
-void freeImage(Image *photo) {
-    if (photo && photo->pixels) {
-        for (int i = 0; i < photo->width; i++) {
-            free(photo->pixels[i]);
-        }
-        free(photo->pixels);
-        photo->pixels = NULL;
-    }
 }
 
 // am o presimitre ca e un mem leak aici ca nu omor memoria care era inainte de crop
