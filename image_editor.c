@@ -104,17 +104,21 @@ void get_kernel(double kernel[3][3], char *filter)
 
 void handle_apply(Image *photo,char *argument)
 {
-    if(photo->pixel_depth == 1)
-    {
-        printf("Easy, Charlie Chaplin\n");
-        return;
-    }
     if(!photo->length)
     {
         printf("No image loaded\n");
         return;
     }
-
+    if(argument == NULL)
+    {
+        printf("Invalid command\n");
+        return;
+    }
+    if(photo->pixel_depth == 1)
+    {
+        printf("Easy, Charlie Chaplin\n");
+        return;
+    }
     double kernel[3][3];
     int **temp;
 
@@ -281,15 +285,10 @@ void save_binary_image(Image *photo, char *file_path) {
     }
     // Determine the format (P5 for grayscale, P6 for RGB)
     char *format = NULL;
-    if (file_path[strlen(file_path) - 2] == 'g') { // Assuming 'g' indicates grayscale
+    if (photo->pixel_depth == 1) { // Assuming 'g' indicates grayscale
         format = "P5";
-    } else if (file_path[strlen(file_path) - 2] == 'p') { // Assuming 'p' indicates RGB
+    } else
         format = "P6";
-    } else {
-        printf("WRONG format\n");
-        fclose(file);
-        return;
-    }
 
     // Write the header
     fprintf(file, "%s\n%d %d\n%d\n", format, photo->length, photo->width, photo->max_value);
@@ -318,54 +317,30 @@ void handle_save(Image *photo,char *argument)
     if(!photo->length)
     {
         printf("No image loaded\n");
+        return;
     }
 	if(argument[strlen(argument)-2] == 'i')
     {
         char *file_path = strtok(argument," ");
-        int lossy_compression = 0;
-        char *format = NULL;
         FILE *file = fopen(file_path,"w");
         if (!file) {
             perror("Failed to open file");
             return;
         }
         // P2
-        if(file_path[strlen(file_path)-2] == 'g') {
+        if(photo->pixel_depth == 1) {
             fprintf(file,"P2");
-            format = "P2";
-            if(photo->pixel_depth == 3)
-            {
-                lossy_compression = 1;
-            }
-        } else if (file_path[strlen(file_path)-2] == 'p') {
+        } else {
             fprintf(file,"P3");
-            format = "P3";
-        }
-        else{
-            printf("WRONG format\n");
-            return;
         }
         fprintf(file,"\n%d %d\n%d\n",photo->length,photo->width,photo->max_value);
-        if(photo->pixel_depth == 1 && !strcmp(format,"P3"))
+        for(int i = 0;i<photo->width;i++)
         {
-            for(int i = 0;i<photo->width;i++)
+            for(int j = 0; j < photo->length * photo->pixel_depth; j++)
             {
-                for(int j = 0; j < photo->length; j++)
-                {
-                    fprintf(file,"%d 0 0 ",photo->pixels[i][j]);
-                }
-                fprintf(file,"\n");
+                fprintf(file,"%d ",photo->pixels[i][j]);
             }
-        }
-        else{
-            for(int i = 0;i<photo->width;i++)
-            {
-                for(int j = 0; j < photo->length * photo->pixel_depth; j = j + 1 + 2 * lossy_compression)
-                {
-                    fprintf(file,"%d ",photo->pixels[i][j]);
-                }
-                fprintf(file,"\n");
-            }
+            fprintf(file,"\n");
         }
         printf("Saved %s\n",file_path);
         fclose(file);
@@ -403,7 +378,26 @@ void handle_print(Image *photo,char *argument)
 }
 void handle_histogram(Image *photo,char *argument)
 {
-	return;
+	if(!photo->length)
+    {
+        printf("No image loaded\n");
+        return;
+    }
+    if(argument == NULL)
+    {
+        printf("Invalid set of parameters\n");
+        return;
+    }
+    int x,y;
+    if (sscanf(argument, "%d %d", &x, &y) != 2) {
+        printf("Error parsing numbers\n");
+		return;
+    }
+    if(photo->pixel_depth == 3)
+    {
+        printf("Black and white image needed\n");
+        return;
+    }
 }
 void handle_equalize(Image *photo,char *argument)
 {
@@ -696,8 +690,8 @@ void get_input(Image *photo)
 	char input[101] = {'\0'};
 	char *mode;
 	char *argument;
-	const char *commands[] = {"APPLY","LOAD", "CROP\n", "SAVE", "EXIT", "SELECT",
-							  "HISTOGRAM", "EQUALIZE", "ROTATE", "PRINT\n"};
+	const char *commands[] = {"APPLY", "LOAD", "CROP", "SAVE", "EXIT", "SELECT",
+							  "HISTOGRAM", "EQUALIZE", "ROTATE", "PRINT"};
 	void (*handlers[])() = {handle_apply,handle_load, handle_crop, handle_save, handle_exit,
                             handle_select, handle_histogram, handle_equalize, handle_rotate, handle_print};
 	int list_length = sizeof(commands) / sizeof(commands[0]);
@@ -709,6 +703,10 @@ void get_input(Image *photo)
 
 	mode = strtok(input, " ");
 	argument = strtok(NULL,"");
+    if(argument == NULL && strcmp(mode,"EXIT"))
+    {
+        mode[strlen(mode)-1] = '\0';
+    }
 	for(int i = 0; i < list_length; i++)
 	{
 		if(!strcmp(mode,commands[i]))
