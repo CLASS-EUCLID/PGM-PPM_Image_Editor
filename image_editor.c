@@ -219,10 +219,10 @@ void handle_select(Image *photo,char *argument)
 	// checks if out of bounds (adica nush daca trebuie pus -1 la fiecare coordonata sau nu depinde daca poti sa iei marginea sau nu)
 	if(x1 == x2 || y1 == y2 || x1 < 0 || x2 < 0 || y1 < 0 || y2 < 0 || x1 > photo->length || x2 > photo->length || y1 > photo->width || y2 > photo->width)
 	{
-        photo->x1 = 0;
-		photo->x2 = photo->length;
-		photo->y1 = 0;
-		photo->y2 = photo->width;
+        // photo->x1 = 0;
+		// photo->x2 = photo->length;
+		// photo->y1 = 0;
+		// photo->y2 = photo->width;
 		printf("Invalid set of coordinates\n");
 		return;
 	}
@@ -299,7 +299,12 @@ void save_binary_image(Image *photo, char *file_path) {
         printf("No image loaded\n");
         return;
     }
-    file_path[strlen(file_path)-1] = '\0';
+
+    while(file_path[strlen(file_path)-1] == '\n' || file_path[strlen(file_path)-1] == ' ')
+    {
+        file_path[strlen(file_path)-1] = '\0';
+    }
+
     FILE *file = fopen(file_path, "wb"); // Open the file in binary mode
 
     if (!file) {
@@ -342,7 +347,7 @@ void handle_save(Image *photo,char *argument)
         printf("No image loaded\n");
         return;
     }
-	if(argument[strlen(argument)-2] == 'i')
+	if(argument[strlen(argument)-3] == 'i')
     {
         char *file_path = strtok(argument," ");
         FILE *file = fopen(file_path,"w");
@@ -543,6 +548,7 @@ void rotate_full_matrix(Image *photo, int degrees) {
 
     int new_width = (degrees == 90 || degrees == 270) ? photo->length : photo->width;
     int new_length = (degrees == 90 || degrees == 270) ? photo->width : photo->length;
+    (degrees == 90 || degrees == 270) ? swap(&photo->x2,&photo->y2):1;
     // Allocate a new matrix for the rotated image
     int **rotated_pixels = (int **)malloc(new_width * sizeof(int *));
     for (int i = 0; i < new_width; i++) {
