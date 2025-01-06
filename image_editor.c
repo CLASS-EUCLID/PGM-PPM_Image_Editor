@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 /*
 to do
@@ -139,7 +140,7 @@ void handle_apply(Image *photo,char *argument)
                 free((temp)[j]);
             }
             free(temp);
-            *temp = NULL;
+            //*temp = NULL;
             return;
         }
     }
@@ -170,7 +171,7 @@ void handle_apply(Image *photo,char *argument)
                     sum = 0;
                 if(sum > 255)
                     sum = 255;
-                temp[i][j] = sum;
+                temp[i][j] = (int)(round(sum));
             }
         }
     }
@@ -223,6 +224,12 @@ void handle_select(Image *photo,char *argument)
 // am o presimitre ca e un mem leak aici ca nu omor memoria care era inainte de crop
 // trebuie verificat ce considera ei ca fiind out of bounds pls ( defapt asta ar fi la select dar whatever)
 void handle_crop(Image *photo, char *argument) {
+
+    if(argument != NULL)
+    {
+        return;
+    }
+
     if (!photo->length || !photo->width) {
         printf("No image loaded\n");
         return;
@@ -356,16 +363,26 @@ void handle_save(Image *photo,char *argument)
 }
 void handle_exit(Image *photo,char *argument)
 {
+    if(argument)
+    {
+        return;
+    }
     if(!photo->length)
     {
         printf("No image loaded\n");
     }
     else
+    {
         freeImage(photo);
+    }
 	exit(0);
 }
 void handle_print(Image *photo,char *argument)
 {
+    if(argument)
+    {
+        return;
+    }
 	if(!photo->length)
 	{
 		printf("NO IMAGE LOADED\n");
@@ -461,6 +478,10 @@ void handle_histogram(Image *photo,char *argument)
 
 void handle_equalize(Image *photo,char *argument)
 {
+    if(argument)
+    {
+        return;
+    }
 	if(!photo->length)
     {
         printf("No image loaded\n");
@@ -486,9 +507,6 @@ void handle_equalize(Image *photo,char *argument)
             freq[i]+=freq[j];
         }
     }
-
-    int l = photo->x2 - photo->x1;
-    int d = photo->y2 - photo->y1;
     for(int i = 0;i<photo->width;i++)
     {
         for(int j = 0; j < photo->length; j++)
@@ -499,7 +517,7 @@ void handle_equalize(Image *photo,char *argument)
             {
                 new_value = 255;
             }
-            photo->pixels[i][j] = (int)(new_value);
+            photo->pixels[i][j] = (int)(round(new_value));
         }
     }
     printf("Equalize done\n");
@@ -826,7 +844,6 @@ void get_input(Image *photo)
 int main()
 {
 	Image photo;
-
 	initialize_struct(&photo);
 	get_input(&photo);
 	freeImage(&photo);
