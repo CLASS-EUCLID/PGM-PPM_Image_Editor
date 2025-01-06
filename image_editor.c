@@ -18,6 +18,7 @@ typedef struct{
 	int x1,x2,y1,y2; // Values that represent the selected portion of the image
 } Image;
 
+
 void freeImage(Image *photo) {
     if (photo && photo->pixels) {
         for (int i = 0; i < photo->width; i++) {
@@ -63,8 +64,8 @@ void get_kernel(double kernel[3][3], char *filter)
     double filters[5][3][3] = {
         {{-1,-1,-1},{-1,8,-1},{-1,-1,-1}},
         {{0,-1,0},{-1,5,-1},{0,-1,0}},
-        {{1.0/9,1.0/9,1.0/9},{1.0/9,1.0/9,1.0/9},{1.0/9,1.0/9,1.0/9}},
-        {{1.0/16,2.0/16,1.0/16},{2.0/16,4.0/16,2.0/16},{1.0/16,2.0/16,1.0/16}},
+        {{1.0,1.0,1.0},{1.0,1.0,1.0},{1.0,1.0,1.0}},
+        {{1.0,2.0,1.0},{2.0,4.0,2.0},{1.0,2.0,1.0}},
         {{0,0,0},{0,1,0},{0,0,0}}
     };
     int selection = 4;
@@ -129,6 +130,15 @@ void handle_apply(Image *photo,char *argument)
         perror("Failed to allocate row pointers");
         return;
     }
+    int value = 1;
+    if(!strcmp(argument,"BLUR"))
+    {
+        value = 9;
+    }
+    if(!strcmp(argument,"GAUSSIAN_BLUR"))
+    {
+        value = 16;
+    }
     // Allocate memory for each row
     for (int i = 0; i < photo->width; i++) {
         (temp)[i] = (int *)calloc(photo->length * photo->pixel_depth , sizeof(int));
@@ -167,11 +177,13 @@ void handle_apply(Image *photo,char *argument)
                 sum += photo->pixels[i+1][j-3] * kernel[2][0];
                 sum += photo->pixels[i+1][j] * kernel[2][1];
                 sum += photo->pixels[i+1][j+3] * kernel[2][2];
+                sum /= value;
                 if(sum < 0)
                     sum = 0;
                 if(sum > 255)
                     sum = 255;
                 temp[i][j] = (int)(round(sum));
+                //temp[i][j] = (int)(sum);
             }
         }
     }
@@ -189,7 +201,7 @@ void handle_select(Image *photo,char *argument)
         printf("No image loaded\n");
         return;
     }
-	if(!strcmp(argument,"ALL\n"))
+	if(!strcmp(argument,"ALL\n") || !strcmp(argument,"ALL \n"))
 	{
 		photo->x1 = 0;
 		photo->x2 = photo->length;
@@ -199,7 +211,7 @@ void handle_select(Image *photo,char *argument)
 		return;
 	}
 	if (sscanf(argument, "%d %d %d %d", &x1, &y1, &x2, &y2) != 4) {
-        printf("Error parsing numbers\n");
+        printf("Invalid command\n");
 		return;
     }
 	sort_int(&x1,&x2);
@@ -388,14 +400,15 @@ void handle_print(Image *photo,char *argument)
 		printf("NO IMAGE LOADED\n");
 		return;
 	}
-	for(int i = 0;i < photo->width; i++)
-	{
-		for(int j =0; j < photo->length * photo->pixel_depth; j++)
-		{
-			printf("%d ",photo->pixels[i][j]);
-		}
-		printf("\n");
-	}
+	// for(int i = 0;i < photo->width; i++)
+	// {
+	// 	for(int j =0; j < photo->length * photo->pixel_depth; j++)
+	// 	{
+	// 		printf("%d ",photo->pixels[i][j]);
+	// 	}
+	// 	printf("\n");
+	// }
+    printf("%d %d %d %d\n",photo->x1,photo->x2,photo->y1,photo->y2);
 }
 void handle_histogram(Image *photo,char *argument)
 {
@@ -406,19 +419,20 @@ void handle_histogram(Image *photo,char *argument)
     }
     if(argument == NULL)
     {
-        printf("Invalid set of parameters\n");
+        printf("Invalid command\n");
         return;
     }
     int x,y;
+    int error;
     float cy;
-    if (sscanf(argument, "%d %d", &x, &y) != 2) {
-        printf("Error parsing numbers\n");
+    if (sscanf(argument, "%d %d %d", &x, &y, &error) != 2) {
+        printf("Invalid command\n");
 		return;
     }
     cy = y;
     if(y == 0 || y == 1)
     {
-        printf("Error parsing numbers\n");
+        printf("Invalid set of parameters\n");
         return;
     }
     while(cy != 1)
@@ -426,7 +440,7 @@ void handle_histogram(Image *photo,char *argument)
         cy/=2.0;
         if(cy != (int)(cy))
         {
-            printf("Error parsing numbers\n");
+            printf("Invalid set of parameters\n");
 		    return;
         }
     }
@@ -575,13 +589,6 @@ void rotate_full_matrix(Image *photo, int degrees) {
 void rotate_selection(Image *photo, int degrees) {
     int cols = photo->x2 - photo->x1; // Number of columns (x-axis range)
     int rows = photo->y2 - photo->y1; // Number of rows (y-axis range)
-
-    if(cols != rows)
-    {
-        printf("Non-square crop can't be done");
-        return;
-    }
-
     // Normalize negative rotations
     if (degrees == -90) {
         degrees = 270;
@@ -649,6 +656,11 @@ void handle_rotate(Image *photo, char *argument) {
     // Parse the degree of rotation from the argument
     int degrees = atoi(argument);
     // Normalize degrees to the range [0, 360]
+    if(!photo->length)
+    {
+        printf("No image loaded\n");
+        return;
+    }
     if(degrees%90)
     {
         printf("Unsupported rotation angle\n");
@@ -665,6 +677,11 @@ void handle_rotate(Image *photo, char *argument) {
 	}
 	else
 	{
+        if(photo->x2 - photo->x1 != photo->y2 - photo->y1)
+        {
+            printf("Invalid set of coordinates");
+            return;
+        }
 		rotate_selection(photo,degrees);
 	}
 	printf("Rotated %d\n", degrees);
@@ -709,6 +726,10 @@ void text_file_image(Image *photo, char * file_name)
         }
     }
 	printf("Loaded %s\n",file_name);
+    photo->x1 = 0;
+    photo->x2 = photo->length;
+    photo->y1 = 0;
+    photo->y2 = photo->width;
 	fclose(file);
 }
 
@@ -760,6 +781,10 @@ void binary_file_image(Image *photo, char * file_name)
     }
     fclose(file);
 	printf("Loaded %s\n",file_name);
+    photo->x1 = 0;
+    photo->x2 = photo->length;
+    photo->y1 = 0;
+    photo->y2 = photo->width;
     return;
 }
 
