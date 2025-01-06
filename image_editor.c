@@ -59,13 +59,14 @@ void initialize_struct(Image *photo)
 void get_kernel(double kernel[3][3], char *filter)
 {
     // might need floats instead
-    double filters[4][3][3] = {
+    double filters[5][3][3] = {
         {{-1,-1,-1},{-1,8,-1},{-1,-1,-1}},
         {{0,-1,0},{-1,5,-1},{0,-1,0}},
         {{1.0/9,1.0/9,1.0/9},{1.0/9,1.0/9,1.0/9},{1.0/9,1.0/9,1.0/9}},
-        {{1.0/16,2.0/16,1.0/16},{2.0/16,4.0/16,2.0/16},{1.0/16,2.0/16,1.0/16}}
+        {{1.0/16,2.0/16,1.0/16},{2.0/16,4.0/16,2.0/16},{1.0/16,2.0/16,1.0/16}},
+        {{0,0,0},{0,1,0},{0,0,0}}
     };
-    int selection = -1;
+    int selection = 4;
     if(!strcmp(filter,"EDGE\n"))
     {
         selection = 0;
@@ -82,10 +83,9 @@ void get_kernel(double kernel[3][3], char *filter)
     {
         selection = 3;
     }
-    if(selection == -1)
+    if(selection == 4)
     {
         printf("APPLY parameter invalid\n");
-        return;
     }
     for(int i = 0;i<3;i++)
     {
@@ -94,6 +94,12 @@ void get_kernel(double kernel[3][3], char *filter)
             kernel[i][j] = filters[selection][i][j];
         }
     }
+    filter[strlen(filter)-1] = '\0';
+    if(selection == 4)
+    {
+        return;
+    }
+    printf("APPLY %s done\n",filter);
 }
 
 void handle_apply(Image *photo,char *argument)
@@ -133,14 +139,20 @@ void handle_apply(Image *photo,char *argument)
             return;
         }
     }
-    int sum = 0;
-    for (int i = 0; i < photo->width; i++) {
-        for (int j = 0; j < photo->length * photo->pixel_depth; j++) {
+    double sum = 0.0;
+    for(int i = 0 ;i<photo->width;i++)
+    {
+        for(int j = 0;j<photo->length * photo->pixel_depth;j++)
+        {
+            temp[i][j] = photo->pixels[i][j];
+        }
+    }
+    for (int i = photo->y1; i < photo->y2; i++) {
+        for (int j = photo->x1 * photo->pixel_depth; j < photo->x2 * photo->pixel_depth; j++) {
             sum = 0;
             if(i == 0 || j < 3 || j >= (photo->length * photo->pixel_depth - 3) || i == photo->width - 1)
                 temp[i][j] = photo->pixels[i][j];
-            else
-            {
+            else {
                 sum += photo->pixels[i-1][j-3] * kernel[0][0];
                 sum += photo->pixels[i-1][j] * kernel[0][1];
                 sum += photo->pixels[i-1][j+3] * kernel[0][2];
@@ -158,8 +170,6 @@ void handle_apply(Image *photo,char *argument)
             }
         }
     }
-    argument[strlen(argument)-1] = '\0';
-    printf("APPLY %s done\n",argument);
      // Free the original matrix
     freeImage(photo);
     // Update the photo structure
@@ -370,9 +380,9 @@ void handle_exit(Image *photo,char *argument)
     if(!photo->length)
     {
         printf("No image loaded\n");
-        return;
     }
-    freeImage(photo);
+    else
+        freeImage(photo);
 	exit(0);
 }
 void handle_print(Image *photo,char *argument)
@@ -652,7 +662,8 @@ void handle_load(Image *photo, char *file_name)
 	FILE *file = fopen(file_name,"rb");
 	if (!file) {
         printf("Failed to load %s\n", file_name);
-		fclose(file);
+        freeImage(photo);
+        initialize_struct(photo);
         return; // Failed to load
     }
 	fread(format,sizeof(char),2,file);
@@ -707,7 +718,7 @@ void get_input(Image *photo)
 		}
 		if(i == list_length-1)
 		{
-			printf("INVALID\n");
+			printf("Invalid command\n");
 		}
 	}
 	get_input(photo);
