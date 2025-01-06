@@ -183,13 +183,13 @@ void handle_apply(Image *photo,char *argument)
 void handle_select(Image *photo,char *argument)
 {
 	int x1,x2,y1,y2;
+    if(!photo->length)
+    {
+        printf("No image loaded\n");
+        return;
+    }
 	if(!strcmp(argument,"ALL\n"))
 	{
-		if(!photo->length)
-		{
-			printf("No image loaded\n");
-			return;
-		}
 		photo->x1 = 0;
 		photo->x2 = photo->length;
 		photo->y1 = 0;
@@ -204,8 +204,12 @@ void handle_select(Image *photo,char *argument)
 	sort_int(&x1,&x2);
 	sort_int(&y1,&y2);
 	// checks if out of bounds (adica nush daca trebuie pus -1 la fiecare coordonata sau nu depinde daca poti sa iei marginea sau nu)
-	if(x1 > photo->length || x2 > photo->length || y1 > photo->width || y2 > photo->width)
+	if(x1 == x2 || y1 == y2 || x1 < 0 || x2 < 0 || y1 < 0 || y2 < 0 || x1 > photo->length || x2 > photo->length || y1 > photo->width || y2 > photo->width)
 	{
+        photo->x1 = 0;
+		photo->x2 = photo->length;
+		photo->y1 = 0;
+		photo->y2 = photo->width;
 		printf("Invalid set of coordinates\n");
 		return;
 	}
@@ -389,19 +393,116 @@ void handle_histogram(Image *photo,char *argument)
         return;
     }
     int x,y;
+    float cy;
     if (sscanf(argument, "%d %d", &x, &y) != 2) {
         printf("Error parsing numbers\n");
 		return;
+    }
+    cy = y;
+    if(y == 0 || y == 1)
+    {
+        printf("Error parsing numbers\n");
+        return;
+    }
+    while(cy != 1)
+    {
+        cy/=2.0;
+        if(cy != (int)(cy))
+        {
+            printf("Error parsing numbers\n");
+		    return;
+        }
     }
     if(photo->pixel_depth == 3)
     {
         printf("Black and white image needed\n");
         return;
     }
+    int freq[256] = {0};
+    int values[256] = {0};
+    int group_size = 256/y;
+    int sum = 0,max_sum = 0,c_group_size = group_size;int it = 0;
+    for(int i  =0 ;i<photo->width;i++)
+    {
+        for(int j=0;j<photo->length;j++)
+        {
+            freq[photo->pixels[i][j]]++;
+        }
+    }
+    for(int i = 0;i<256;i++)
+    {
+        sum = 0;
+        while(c_group_size)
+        {
+            sum+=freq[i++];
+            c_group_size--;
+        }
+        values[it++] = sum;
+        if(sum > max_sum)
+        {
+            max_sum = sum;
+        }
+        c_group_size = group_size;
+        i--;
+    }
+    for(int i = 0;i<it;i++)
+    {
+        double stars_f = 1.0*values[i]/max_sum * x;
+        int stars = (int)(stars_f);
+        printf("%d\t|\t",stars);
+        while(stars)
+        {
+            printf("*");
+            stars--;
+        }
+        printf("\n");
+    }
 }
+
 void handle_equalize(Image *photo,char *argument)
 {
-	return;
+	if(!photo->length)
+    {
+        printf("No image loaded\n");
+        return;
+    }
+    if(photo->pixel_depth == 3)
+    {
+        printf("Black and white image needed\n");
+        return;
+    }
+    int freq[256] = {0};
+    for(int i  =0 ;i<photo->width;i++)
+    {
+        for(int j=0;j<photo->length;j++)
+        {
+            freq[photo->pixels[i][j]]++;
+        }
+    }
+    for(int i = 255;i>=0;i--)
+    {
+        for(int j = 0;j<i;j++)
+        {
+            freq[i]+=freq[j];
+        }
+    }
+
+    int l = photo->x2 - photo->x1;
+    int d = photo->y2 - photo->y1;
+    for(int i = 0;i<photo->width;i++)
+    {
+        for(int j = 0; j < photo->length; j++)
+        {
+            double new_value = 0;
+            new_value = 255.0/photo->width/photo->length*freq[photo->pixels[i][j]];
+            if(new_value > 255)
+            {
+                new_value = 255;
+            }
+            photo->pixels[i][j] = (int)(new_value);
+        }
+    }
+    printf("Equalize done\n");
 }
 
 void rotate_full_matrix(Image *photo, int degrees) {
